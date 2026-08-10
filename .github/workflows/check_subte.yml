@@ -1,0 +1,39 @@
+name: Chequeo Subte Linea B
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+jobs:
+  check-subte:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout del repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Instalar dependencias
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Ejecutar bot
+        env:
+          BA_CLIENT_ID: ${{ secrets.BA_CLIENT_ID }}
+          BA_CLIENT_SECRET: ${{ secrets.BA_CLIENT_SECRET }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python bot_subte.py
+
+      - name: Guardar estado actualizado
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add ultimo_estado.txt || true
+          git commit -m "Actualizar ultimo estado del subte" || exit 0
+          git push
