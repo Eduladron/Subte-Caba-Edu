@@ -13,7 +13,8 @@ def enviar_telegram(mensaje):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
     payload = {"chat_id": CHAT_ID, "text": mensaje, "parse_mode": "Markdown"}
     try:
-        requests.post(url, json=payload, timeout=10)
+        r = requests.post(url, json=payload, timeout=10)
+        print(f"Respuesta de Telegram: {r.status_code} - {r.text}")
     except Exception as e:
         print(f"Error al enviar mensaje a Telegram: {e}")
 
@@ -25,28 +26,39 @@ def obtener_alertas():
     
     if response.status_code != 200:
         print(f"Error HTTP {response.status_code} al consultar API Transporte.")
-        print(f"Respuesta del servidor: {response.text}")
         return None
+
+    content = response.content
+
+    # Si la respuesta incluye encabezados adicionales de versión, recortamos hasta la primera entidad
+    idx = content.find(b'\x0a')
+    if idx != -1 and idx < 20:
+        content = content[idx:]
 
     feed = gtfs_realtime_pb2.FeedMessage()
     try:
-        feed.ParseFromString(response.content)
+        feed.ParseFromString(content)
     except Exception as e:
-        print(f"No se pudo parsear el feed protobuf: {e}")
-        print(f"Contenido recibido (primeros 500 caracteres): {response.text[:500]}")
+        print(f"Error al parsear protobuf ajustado: {e}")
         return None
 
     alertas_linea_b = []
 
     for entity in feed.entity:
         if entity.HasField('alert'):
-            aplica_linea_b = False
-            for informed_entity in entity.alert.informed_entity:
-                if informed_entity.HasField('route_id') and informed_entity.route_id in ["LineaB", "B", "LINEA_B", "LineB", "3"]:
-                    aplica_linea_b = True
+            es_linea_b = False
+            
+            # 1. Revisar IDs en informed_entity
+            for informed in entity.alert.informed_entity:
+                if informed.HasField('route_id') and 'LineaB' in informed.route_id:
+                    es_linea_b = True
                     break
             
-            if aplica_linea_b:
+            # 2. Revisar si el ID de la alerta hace referencia a la Línea B
+            if not es_linea_b and 'LineaB' in entity.id:
+                es_linea_b = True
+
+            if es_linea_b:
                 header_text = ""
                 if entity.alert.header_text.translation:
                     header_text = entity.alert.header_text.translation[0].text
@@ -78,7 +90,8 @@ def main():
     print(f"Estado anterior: {estado_anterior}")
     print(f"Estado actual: {estado_actual}")
 
-    if estado_actual != estado_anterior:
+    # Enviar mensaje siempre en la primera ejecución o cuando cambie el estado
+    if estado_actual != estado_anterior or not os.path.exists(STATE_FILE):
         if estado_actual == "NORMAL":
             mensaje = "🟢 **Línea B - Servicio Normalizado / Sin Alertas**"
         else:
