@@ -20,13 +20,21 @@ def enviar_telegram(mensaje):
 def obtener_alertas():
     url = f"https://apitransporte.buenosaires.gob.ar/subtes/serviceAlerts?client_id={CLIENT_ID}&client_secret={CLIENT_SECRET}"
     
-    response = requests.get(url, timeout=15)
+    headers = {"User-Agent": "Mozilla/5.0"}
+    response = requests.get(url, headers=headers, timeout=15)
+    
     if response.status_code != 200:
-        print(f"Error en API Transporte: Status {response.status_code}")
+        print(f"Error HTTP {response.status_code} al consultar API Transporte.")
+        print(f"Respuesta del servidor: {response.text}")
         return None
 
     feed = gtfs_realtime_pb2.FeedMessage()
-    feed.ParseFromString(response.content)
+    try:
+        feed.ParseFromString(response.content)
+    except Exception as e:
+        print(f"No se pudo parsear el feed protobuf: {e}")
+        print(f"Contenido recibido (primeros 500 caracteres): {response.text[:500]}")
+        return None
 
     alertas_linea_b = []
 
@@ -34,7 +42,7 @@ def obtener_alertas():
         if entity.HasField('alert'):
             aplica_linea_b = False
             for informed_entity in entity.alert.informed_entity:
-                if informed_entity.HasField('route_id') and informed_entity.route_id in ["LineaB", "B", "LINEA_B"]:
+                if informed_entity.HasField('route_id') and informed_entity.route_id in ["LineaB", "B", "LINEA_B", "LineB", "3"]:
                     aplica_linea_b = True
                     break
             
