@@ -1,5 +1,1 @@
-RZ
-X
-RViernes y sábados horario extendido. Est. habilitadas en buenosaires.gob.ar/Subte - esZZ
-X
-RViernes y sábados horario extendido. Est. habilitadas en buenosaires.gob.ar/Subte
+NORMAL
